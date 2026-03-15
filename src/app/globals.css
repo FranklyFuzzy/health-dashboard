@@ -1,0 +1,75 @@
+@import "tailwindcss";
+
+:root {
+  --bg-primary: #000000;
+  --bg-secondary: #0a0a0a;
+  --bg-tertiary: #1a1a1a;
+  --bg-hover: #1a1a1a;
+  --bg-surface: #0a0a0a;
+  --bg-active: #222;
+  --bg-card: #111111;
+  --text-primary: #ffffff;
+  --text-secondary: #aaa;
+  --text-muted: #555;
+  --border-color: #222;
+  --accent: #C8FF00;
+  --accent-dim: #8ab300;
+  --positive: #C8FF00;
+  --negative: #ff4444;
+  --blue: #7B8CFF;
+  --purple: #8B5CF6;
+  --yellow: #C8FF00;
+}
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: 'Inter', -apple-system, system-ui, sans-serif;
+  font-size: 13px;
+  -webkit-font-smoothing: antialiased;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #222 transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: #222;
+  border-radius: 3px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: #444;
+}
+
+button, select, [role="button"] {
+  cursor: pointer;
+}
+
+.sidebar-nav-item {
+  cursor: pointer;
+  transition: all 0.1s;
+}
+.sidebar-nav-item:hover {
+  color: var(--text-primary) !important;
+  background: var(--bg-hover);
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
