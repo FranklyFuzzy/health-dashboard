@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, memo, useCallback } from "react";
+import { useState, useMemo, memo, useCallback, useEffect } from "react";
 import { useDay, useDailyLogs, localToday } from "@/lib/hooks/use-health-data";
 import { TARGETS } from "@/lib/constants";
 import type { DailyLog } from "@/lib/types";
@@ -185,8 +185,8 @@ const MacroBar = memo(function MacroBar({ label, value, target, color }: { label
 });
 
 // --- Weight input card ---
-function WeightCard({ today, weightTrend, sparkData, sparkLabels, defaultDay }: {
-  today: Partial<DailyLog>; weightTrend: number | null; sparkData: number[]; sparkLabels: string[]; defaultDay?: string;
+function WeightCard({ today, weightTrend, sparkData, sparkLabels, defaultDay, avgWeight }: {
+  today: Partial<DailyLog>; weightTrend: number | null; sparkData: number[]; sparkLabels: string[]; defaultDay?: string; avgWeight?: number | null;
 }) {
   const [wt, setWt] = useState("");
   const [day, setDay] = useState(defaultDay || localToday);
@@ -214,6 +214,7 @@ function WeightCard({ today, weightTrend, sparkData, sparkLabels, defaultDay }: 
           {weightTrend >= 0 ? "+" : ""}{weightTrend.toFixed(1)} vs 7d
         </div>
       ) : null}
+      <AvgBadge value={avgWeight} unit=" lbs" />
       <div style={{ marginTop: "auto" }}>
         <Spark data={sparkData} labels={sparkLabels} color="var(--blue)" unit=" lbs" height={40} yLabels={false} />
       </div>
@@ -230,87 +231,17 @@ function WeightCard({ today, weightTrend, sparkData, sparkLabels, defaultDay }: 
 
 // --- Big Charts ---
 
-function WeightChart({ logs }: { logs: DailyLog[] }) {
-  const [hover, setHover] = useState<number | null>(null);
-  const onLeave = useCallback(() => setHover(null), []);
-  const data = useMemo(() => logs.filter(l => l.weight_lbs != null).toSorted((a, b) => a.day.localeCompare(b.day)).slice(-30), [logs]);
-  if (data.length < 2) return null;
-
-  const weights = data.map(d => d.weight_lbs!);
-  let min = weights[0], max = weights[0];
-  for (let i = 1; i < weights.length; i++) { if (weights[i] < min) min = weights[i]; if (weights[i] > max) max = weights[i]; }
-  // Add more padding so the line uses more vertical space
-  const pad = Math.max((max - min) * 0.3, 1);
-  min -= pad; max += pad;
-  const range = max - min || 1;
-  const W = 500, H = 160, LM = 28, RM = 4, BM = 22;
-  const chartH = H - BM;
-
-  const pts = data.map((d, i) => ({
-    x: Math.round((LM + (i / (data.length - 1)) * (W - LM - RM)) * 10) / 10,
-    y: Math.round((10 + (1 - (d.weight_lbs! - min) / range) * (chartH - 14)) * 10) / 10,
-    day: d.day.slice(5), val: d.weight_lbs!,
-  }));
-  const path = pts.map((p, i) => `${i === 0 ? "M" : "L"}${p.x},${p.y}`).join("");
-  const area = `${path}L${pts[pts.length - 1].x},${chartH}L${pts[0].x},${chartH}Z`;
-  const delta = weights[weights.length - 1] - weights[0];
-
-  return (
-    <div style={CARD}>
-      <div className="flex items-baseline justify-between mb-3">
-        <span style={{ fontSize: 15, fontWeight: 700 }}>Weight</span>
-        <span style={{ fontSize: 12, fontWeight: 600, color: delta < 0 ? "var(--accent)" : "var(--negative)" }}>
-          {hover != null ? `${pts[hover].day} \u00B7 ${pts[hover].val} lbs` : `${delta >= 0 ? "+" : ""}${delta.toFixed(1)} lbs`}
-        </span>
-      </div>
-      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", marginTop: "auto" }} onMouseLeave={onLeave}>
-        <defs>
-          <linearGradient id="wg" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="var(--blue)" stopOpacity="0.12" />
-            <stop offset="100%" stopColor="var(--blue)" stopOpacity="0" />
-          </linearGradient>
-        </defs>
-        {/* Y-axis labels + grid */}
-        {[0, .25, .5, .75, 1].map(f => {
-          const y = 10 + f * (chartH - 14);
-          const val = (max - f * (max - min)).toFixed(0);
-          return <g key={f}>
-            <line x1={LM} y1={y} x2={W - RM} y2={y} stroke="#1a1a1a" />
-            <text x={LM - 6} y={y + 4} fill="#555" fontSize="10" textAnchor="end">{val}</text>
-          </g>;
-        })}
-        <path d={area} fill="url(#wg)" />
-        <path d={path} fill="none" stroke="var(--blue)" strokeWidth="2" />
-        {pts.map((p, i) => (
-          <g key={i} onMouseEnter={() => setHover(i)} style={{ cursor: "pointer" }}>
-            <rect x={p.x - 8} y={0} width={16} height={H} fill="transparent" />
-            <circle cx={p.x} cy={p.y} r={hover === i ? 5 : 2} fill={hover === i ? "#fff" : "var(--blue)"} style={{ transition: "all 0.1s" }} />
-          </g>
-        ))}
-        {hover != null ? <line x1={pts[hover].x} y1={10} x2={pts[hover].x} y2={chartH} stroke="#333" strokeWidth="1" /> : null}
-        {pts.map((p, i) => (
-          i % Math.ceil(pts.length / 6) === 0 || i === pts.length - 1
-            ? <text key={`d${i}`} x={p.x} y={H - 4} fill="#555" fontSize="10" textAnchor="middle">{p.day}</text>
-            : null
-        ))}
-      </svg>
-    </div>
-  );
-}
-
-function CalBalanceChart({ logs }: { logs: DailyLog[] }) {
+function CalBalanceChart({ logs, avgDeficit }: { logs: DailyLog[]; avgDeficit: number | null }) {
   const [hover, setHover] = useState<number | null>(null);
   const onLeave = useCallback(() => setHover(null), []);
 
   const data = useMemo(() => logs
-    .filter(l => l.food_calories != null && l.total_calories != null && l.active_calories != null)
+    .filter(l => l.food_calories != null && l.total_calories != null)
     .toSorted((a, b) => a.day.localeCompare(b.day))
     .slice(-14)
     .map(l => {
-      const bmr = l.total_calories! - l.active_calories!;
-      const workouts = (l.oura_workout_calories || 0) + (l.workout_calories || 0);
-      const burn = bmr + workouts;
-      return { day: l.day, intake: l.food_calories!, bmr, workouts, burn, deficit: burn - l.food_calories! };
+      const burn = l.total_calories!;
+      return { day: l.day, intake: l.food_calories!, burn, deficit: burn - l.food_calories! };
     }),
   [logs]);
 
@@ -340,13 +271,18 @@ function CalBalanceChart({ logs }: { logs: DailyLog[] }) {
     <div style={CARD}>
       <div className="flex items-baseline justify-between mb-1">
         <span style={{ fontSize: 15, fontWeight: 700 }}>Calorie Balance</span>
-        <span style={{ fontSize: 11, color: "#555" }}>BMR + workouts &minus; food</span>
+        <span style={{ fontSize: 11, color: "#555" }}>food &minus; total burn</span>
       </div>
+      {avgDeficit != null ? (
+        <div style={{ fontSize: 10, color: "#555" }}>
+          7d avg: <span style={{ color: avgDeficit >= 0 ? "var(--negative)" : "var(--accent)" }}>{avgDeficit >= 0 ? "-" : "+"}{Math.abs(avgDeficit)} cal</span>
+        </div>
+      ) : null}
       {/* Tooltip above chart */}
       <div style={{ height: 20, fontSize: 11, color: "#888", marginBottom: 4 }}>
         {hd ? (
           <span>
-            {hd.day.slice(5)}: {hd.burn} burn &minus; {hd.intake} food = <span style={{ color: hd.deficit >= 0 ? "var(--accent)" : "var(--negative)", fontWeight: 700 }}>{hd.deficit >= 0 ? "-" : "+"}{Math.abs(hd.deficit)} cal</span>
+            {hd.day.slice(5)}: {hd.burn} burn &minus; {hd.intake} food = <span style={{ color: hd.deficit >= 0 ? "var(--negative)" : "var(--accent)", fontWeight: 700 }}>{hd.deficit >= 0 ? "-" : "+"}{Math.abs(hd.deficit)} cal</span>
           </span>
         ) : null}
       </div>
@@ -360,9 +296,9 @@ function CalBalanceChart({ logs }: { logs: DailyLog[] }) {
           const cx = Math.round((LM + ((i + .5) / data.length) * (W - LM - RM)) * 10) / 10;
           const barH = Math.max(Math.round((Math.abs(d.deficit) / totalRange) * (chartH - 14) * 10) / 10, 4);
           const isDeficit = d.deficit >= 0;
-          const y = isDeficit ? zeroY - barH : zeroY;
+          const y = isDeficit ? zeroY : zeroY - barH;
           const isH = hover === i;
-          const barColor = isDeficit ? "var(--accent)" : "var(--negative)";
+          const barColor = isDeficit ? "var(--negative)" : "var(--accent)";
           return (
             <g key={d.day} onMouseEnter={() => setHover(i)} style={{ cursor: "pointer" }}>
               <rect x={cx - bw / 2 - 4} y={0} width={bw + 8} height={H} fill="transparent" />
@@ -377,6 +313,89 @@ function CalBalanceChart({ logs }: { logs: DailyLog[] }) {
   );
 }
 
+// --- Stacked bar chart (resting + active calories) ---
+const StackedBars = memo(function StackedBars({ data, labels, height = 70 }: {
+  data: { active: number; resting: number }[]; labels: string[]; height?: number;
+}) {
+  const [hover, setHover] = useState<number | null>(null);
+  const onLeave = useCallback(() => setHover(null), []);
+  if (data.length === 0) return null;
+
+  let max = 0;
+  for (const d of data) { const t = d.active + d.resting; if (t > max) max = t; }
+  if (max === 0) max = 1;
+
+  const W = 220, H = height, LM = 4, BM = 14;
+  const chartH = H - BM;
+  const gap = 4;
+  const barW = Math.max((W - LM - gap * (data.length - 1)) / data.length, 4);
+
+  const tipPct = hover != null ? ((LM + hover * (barW + gap) + barW / 2) / W) * 100 : 50;
+  const hd = hover != null ? data[hover] : null;
+
+  return (
+    <div style={{ position: "relative" }}>
+      {hover != null && hd ? (
+        <div style={{ position: "absolute", top: -20, left: `${tipPct}%`, transform: "translateX(-50%)", fontSize: 11, fontWeight: 600, color: "#aaa", zIndex: 1, whiteSpace: "nowrap" }}>
+          {labels[hover]} &middot; {(hd.active + hd.resting).toLocaleString()}
+        </div>
+      ) : null}
+      <svg width="100%" viewBox={`0 0 ${W} ${H}`} onMouseLeave={onLeave}>
+        {data.map((d, i) => {
+          const total = d.active + d.resting;
+          const totalH = Math.max(Math.round((total / max) * (chartH - 4) * 10) / 10, 2);
+          const activeH = Math.round((d.active / max) * (chartH - 4) * 10) / 10;
+          const restingH = totalH - activeH;
+          const isH = hover === i;
+          const x = LM + i * (barW + gap);
+          const xR = Math.round(x * 10) / 10;
+          const bwR = Math.round(barW * 10) / 10;
+          return (
+            <g key={i} onMouseEnter={() => setHover(i)} style={{ cursor: "pointer" }}>
+              <rect x={x} y={0} width={barW} height={H} fill="transparent" />
+              {/* Resting (bottom) */}
+              <rect x={xR} y={Math.round((chartH - totalH) * 10) / 10 + activeH} width={bwR} height={Math.max(restingH, 0)}
+                rx="0" fill="var(--blue)" opacity={isH ? 1 : 0.65} style={{ transition: "opacity 0.1s" }} />
+              {/* Active (top) */}
+              <rect x={xR} y={Math.round((chartH - totalH) * 10) / 10} width={bwR} height={Math.max(activeH, 0)}
+                rx="3" fill="var(--negative)" opacity={isH ? 1 : 0.65} style={{ transition: "opacity 0.1s" }} />
+            </g>
+          );
+        })}
+        {labels.map((l, i) => {
+          const x = LM + i * (barW + gap) + barW / 2;
+          return (labels.length <= 7 || i === 0 || i === labels.length - 1)
+            ? <text key={i} x={x} y={H - 1} fill="#444" fontSize="7" textAnchor="middle">{l}</text>
+            : null;
+        })}
+      </svg>
+    </div>
+  );
+});
+
+// --- Weekly average helper ---
+function avg7(logs: DailyLog[], fn: (l: DailyLog) => number | null): number | null {
+  const vals = logs.filter(l => fn(l) != null).map(l => fn(l)!);
+  return vals.length > 0 ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length) : null;
+}
+
+function avg7f(logs: DailyLog[], fn: (l: DailyLog) => number | null, decimals = 1): number | null {
+  const vals = logs.filter(l => fn(l) != null).map(l => fn(l)!);
+  if (vals.length === 0) return null;
+  const v = vals.reduce((a, b) => a + b, 0) / vals.length;
+  const factor = 10 ** decimals;
+  return Math.round(v * factor) / factor;
+}
+
+const AvgBadge = memo(function AvgBadge({ value, unit, color }: { value: string | number | null; unit?: string; color?: string }) {
+  if (value == null) return null;
+  return (
+    <div style={{ fontSize: 10, color: color || "#555", marginTop: 2 }}>
+      7d avg: {typeof value === "number" ? value.toLocaleString() : value}{unit || ""}
+    </div>
+  );
+});
+
 // --- Sparkline builder ---
 function buildSparklines(logs: DailyLog[]) {
   const sorted = logs.toSorted((a, b) => a.day.localeCompare(b.day));
@@ -385,6 +404,7 @@ function buildSparklines(logs: DailyLog[]) {
     const f = last7.filter(l => fn(l) != null);
     return { data: f.map(l => fn(l)!), labels: f.map(l => l.day.slice(5)) };
   };
+  const burnEntries = last7.filter(l => l.total_calories != null && l.active_calories != null);
   return {
     sleep: build(l => l.sleep_hours),
     recovery: build(l => l.readiness_score),
@@ -392,6 +412,27 @@ function buildSparklines(logs: DailyLog[]) {
     protein: build(l => l.protein_g),
     weight: build(l => l.weight_lbs),
     activeCal: build(l => l.active_calories),
+    burnStacked: {
+      data: burnEntries.map(l => ({ active: l.active_calories!, resting: l.total_calories! - l.active_calories! })),
+      labels: burnEntries.map(l => l.day.slice(5)),
+    },
+    avg: {
+      foodCal: avg7(last7, l => l.food_calories),
+      protein: avg7(last7, l => l.protein_g),
+      sleep: avg7f(last7, l => l.sleep_hours),
+      recovery: avg7(last7, l => l.readiness_score),
+      steps: avg7(last7, l => l.steps),
+      totalBurn: avg7(last7, l => l.total_calories),
+      activeCal: avg7(last7, l => l.active_calories),
+      restingCal: avg7(last7, l => l.total_calories != null && l.active_calories != null ? l.total_calories - l.active_calories : null),
+      weight: avg7f(last7, l => l.weight_lbs),
+      workoutMin: avg7(last7, l => l.workout_duration_min),
+      workoutCal: avg7(last7, l => l.workout_calories),
+      calBalance: avg7(last7, l => {
+        if (l.food_calories == null || l.total_calories == null) return null;
+        return l.total_calories - l.food_calories;
+      }),
+    },
   };
 }
 
@@ -412,12 +453,13 @@ function formatDayLabel(day: string): string {
 }
 
 export function DashboardView() {
-  const [selectedDay, setSelectedDay] = useState(localToday);
-  const { data: dayData } = useDay(selectedDay);
+  const [selectedDay, setSelectedDay] = useState("");
+  useEffect(() => { setSelectedDay(localToday()); }, []);
+  const { data: dayData } = useDay(selectedDay || localToday());
   const { data: logs } = useDailyLogs();
   const all = logs || [];
   const d = dayData || ({} as Partial<DailyLog>);
-  const isToday = selectedDay === localToday();
+  const isToday = !selectedDay || selectedDay === localToday();
 
   const s = useMemo(() => buildSparklines(all), [all]);
 
@@ -467,6 +509,7 @@ export function DashboardView() {
         <div className="mt-3 tabular-nums" style={{ fontSize: 12, color: "#fb923c" }}>
           {d.food_calories || 0}<span style={{ color: "#555" }}> / {TARGETS.calories} kcal</span>
         </div>
+        <AvgBadge value={s.avg.foodCal} unit=" kcal" />
       </div>
 
       {/* Sleep */}
@@ -477,6 +520,7 @@ export function DashboardView() {
           <span style={{ fontSize: 14, color: "#555" }}>hrs</span>
         </div>
         {d.sleep_score != null ? <div style={{ fontSize: 11, color: "#666", marginTop: 3 }}>Score {d.sleep_score}</div> : null}
+        <AvgBadge value={s.avg.sleep} unit="h" />
         <div style={{ marginTop: "auto" }}>
           <Bars data={s.sleep.data} labels={s.sleep.labels} color="var(--blue)" unit="h" yLabels={false} />
         </div>
@@ -489,6 +533,7 @@ export function DashboardView() {
           <span className="tabular-nums" style={{ fontSize: 36, fontWeight: 800, color: rc(d.readiness_score ?? null), lineHeight: 1 }}>{d.readiness_score ?? "--"}</span>
           <span style={{ fontSize: 14, color: "#555" }}>/100</span>
         </div>
+        <AvgBadge value={s.avg.recovery} unit="/100" />
         <div style={{ marginTop: "auto" }}>
           <Spark data={s.recovery.data} labels={s.recovery.labels} color={rc(d.readiness_score ?? null)} yLabels={false} />
         </div>
@@ -500,6 +545,7 @@ export function DashboardView() {
         <div className="flex items-baseline gap-1 mt-2">
           <span className="tabular-nums" style={{ fontSize: 36, fontWeight: 800, lineHeight: 1 }}>{d.steps?.toLocaleString() || "--"}</span>
         </div>
+        <AvgBadge value={s.avg.steps} />
         <div style={{ marginTop: "auto" }}>
           <Spark data={s.steps.data} labels={s.steps.labels} color="var(--accent)" yLabels={false} />
         </div>
@@ -530,20 +576,32 @@ export function DashboardView() {
             <div style={{ fontSize: 10, color: "#555" }}>cal</div>
           </div>
         </div>
+        <AvgBadge value={s.avg.workoutMin != null ? `${s.avg.workoutMin} min · ${s.avg.workoutCal ?? "--"} cal` : null} />
       </div>
 
       {/* Weight — with input */}
-      <WeightCard today={d} weightTrend={weightTrend} sparkData={s.weight.data} sparkLabels={s.weight.labels} defaultDay={selectedDay} />
+      <WeightCard today={d} weightTrend={weightTrend} sparkData={s.weight.data} sparkLabels={s.weight.labels} defaultDay={selectedDay} avgWeight={s.avg.weight} />
 
-      {/* Active Calories */}
+      {/* Calories Burned */}
       <div style={CARD}>
-        <div style={{ fontSize: 14, fontWeight: 700 }}>Active Calories</div>
+        <div style={{ fontSize: 14, fontWeight: 700 }}>Calories Burned</div>
         <div className="flex items-baseline gap-1 mt-2">
-          <span className="tabular-nums" style={{ fontSize: 36, fontWeight: 800, color: "var(--accent)", lineHeight: 1 }}>{d.active_calories?.toLocaleString() || "--"}</span>
+          <span className="tabular-nums" style={{ fontSize: 36, fontWeight: 800, color: "#aaa", lineHeight: 1 }}>{d.total_calories?.toLocaleString() || "--"}</span>
           <span style={{ fontSize: 14, color: "#555" }}>kcal</span>
         </div>
+        <div className="flex gap-4 mt-1" style={{ fontSize: 11 }}>
+          <span style={{ color: "var(--negative)" }}>{d.active_calories?.toLocaleString() ?? "--"} active</span>
+          <span style={{ color: "var(--blue)" }}>{d.total_calories != null && d.active_calories != null ? (d.total_calories - d.active_calories).toLocaleString() : "--"} resting</span>
+        </div>
+        <AvgBadge value={s.avg.totalBurn} unit=" kcal" />
+        {s.avg.activeCal != null ? (
+          <div style={{ fontSize: 10, color: "#555", marginTop: 1 }}>
+            <span style={{ color: "var(--negative)" }}>{s.avg.activeCal?.toLocaleString()}</span> active{" · "}
+            <span style={{ color: "var(--blue)" }}>{s.avg.restingCal?.toLocaleString()}</span> resting
+          </div>
+        ) : null}
         <div style={{ marginTop: "auto" }}>
-          <Bars data={s.activeCal.data} labels={s.activeCal.labels} color="var(--accent)" unit=" cal" yLabels={false} />
+          <StackedBars data={s.burnStacked.data} labels={s.burnStacked.labels} />
         </div>
       </div>
 
@@ -557,40 +615,15 @@ export function DashboardView() {
           <span className="tabular-nums" style={{ fontSize: 36, fontWeight: 800, color: "var(--accent)", lineHeight: 1 }}>{d.protein_g ? Math.round(d.protein_g) : "--"}</span>
           <span style={{ fontSize: 14, color: "#555" }}>g</span>
         </div>
+        <AvgBadge value={s.avg.protein} unit="g" />
         <div style={{ marginTop: "auto" }}>
           <Bars data={s.protein.data} labels={s.protein.labels} color="var(--accent)" unit="g" target={TARGETS.protein_g} yLabels={false} />
         </div>
       </div>
 
-      {/* Water — fill-up glass visual */}
-      <div style={{ ...CARD, position: "relative" }}>
-        <div className="flex items-baseline justify-between" style={{ position: "relative", zIndex: 1 }}>
-          <span style={{ fontSize: 14, fontWeight: 700 }}>Water</span>
-          <span style={{ fontSize: 11, color: "#555" }}>{d.water_oz || 0}/{TARGETS.water_oz} oz</span>
-        </div>
-        <div style={{ position: "relative", zIndex: 1, margin: "auto 0", textAlign: "center" }}>
-          <div className="tabular-nums" style={{ fontSize: 48, fontWeight: 800, color: "#38BDF8", lineHeight: 1 }}>{d.water_oz ?? 0}</div>
-          <div style={{ fontSize: 12, color: "#555", marginTop: 6 }}>of {TARGETS.water_oz} oz</div>
-        </div>
-        {/* Water fill background */}
-        <div style={{
-          position: "absolute",
-          bottom: 0,
-          left: 0,
-          right: 0,
-          height: `${Math.min(((d.water_oz || 0) / TARGETS.water_oz) * 100, 100)}%`,
-          background: "linear-gradient(to top, rgba(56, 189, 248, 0.12), rgba(56, 189, 248, 0.03))",
-          transition: "height 0.5s ease",
-          borderRadius: "0 0 16px 16px",
-        }} />
-      </div>
+      {/* Calorie Balance */}
+      <CalBalanceChart logs={all} avgDeficit={s.avg.calBalance} />
 
-      </div>
-
-      {/* Big trend charts — side by side */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-        <WeightChart logs={all} />
-        <CalBalanceChart logs={all} />
       </div>
     </div>
   );

@@ -2,7 +2,7 @@
 
 A local-first personal health dashboard built with Next.js and SQLite. Track weight, food, workouts, sleep, blood work, and more — all in one place.
 
-Ships with pre-built connectors for **Oura Ring**, **Cronometer**, and **Ladder** workout screenshots, but the architecture is simple enough to add any data source you want.
+Ships with pre-built connectors for **Garmin Connect**, **Cronometer**, and **Ladder** workout screenshots, but the architecture is simple enough to add any data source you want.
 
 ## Quick Start
 
@@ -18,27 +18,43 @@ The seed script generates 30 days of realistic dummy data so you can explore the
 
 ## Data Sources
 
-### Oura Ring
-Syncs sleep, activity, readiness scores, and steps.
+### Garmin Connect
+Syncs sleep, activity, readiness (body battery), steps, and workout calories via the `garminconnect` Python library.
 
-1. Create a developer account at [cloud.ouraring.com](https://cloud.ouraring.com/v2/docs)
-2. Create a new application with redirect URI `http://localhost:3000/api/oura-callback`
-3. Add your credentials to `.env`:
+1. Set up a Python virtual environment and install dependencies:
+   ```bash
+   python3 -m venv venv
+   source venv/bin/activate
+   pip install garminconnect python-dotenv
    ```
-   OURA_CLIENT_ID=your-client-id
-   OURA_CLIENT_SECRET=your-client-secret
+2. Add your credentials to `.env`:
    ```
-4. Go to Settings in the app and click "Connect Oura"
+   GARMIN_EMAIL=your-email
+   GARMIN_PASSWORD=your-password
+   ```
+3. Run the interactive MFA auth once to populate tokens:
+   ```python
+   from garminconnect import Garmin
+   client = Garmin("your-email", "your-password", prompt_mfa=input)
+   client.login()
+   client.garth.dump("~/.garminconnect")
+   ```
+4. After the first login, tokens are stored at `~/.garminconnect/` and auto-refresh — no MFA needed again.
+5. Go to Settings in the app and click "Sync Now"
 
 ### Cronometer
-Syncs food calories, macros (protein/carbs/fat), and water intake via browser automation.
+Syncs food calories and macros (protein/carbs/fat) via [cronometer-export](https://github.com/jrmycanady/cronometer-export).
 
-1. Add your Cronometer credentials to `.env`:
+1. Install the Go binary:
+   ```bash
+   go install github.com/jrmycanady/cronometer-export@latest
    ```
-   CHRONO_EMAIL=your-email
-   CHRONO_PASS=your-password
+   Make sure `~/go/bin` is in your `$PATH`.
+2. Add your Cronometer credentials to `.env`:
    ```
-2. Install Playwright browsers: `npx playwright install chromium`
+   CRONOMETER_EMAIL=your-email
+   CRONOMETER_PASSWORD=your-password
+   ```
 3. Hit "Sync Now" in Settings
 
 ### Ladder (Workout Screenshots)
@@ -70,6 +86,38 @@ For example, to add MyFitnessPal, Whoop, Apple Health, or any other source:
 
 This project was built with [Claude Code](https://claude.ai/claude-code) — you can use it to add new integrations by describing what you want.
 
+## Automated Daily Sync
+
+You can automate daily syncing with a cron job. A helper script is included:
+
+```bash
+# Make it executable (already done if you cloned fresh)
+chmod +x scripts/sync-cron.sh
+
+# Add to crontab — runs daily at 3am (yesterday's data is fully finalized by then)
+crontab -e
+# Add this line:
+0 3 * * * /path/to/health-dashboard/scripts/sync-cron.sh
+```
+
+The app must be running on `localhost:3000` for the cron job to work.
+
+## Customizing Targets
+
+Edit `src/lib/constants.ts` to change your daily nutrition goals:
+
+```ts
+export const TARGETS = {
+  calories: 2000,      // daily calorie target (kcal)
+  protein_g: 170,      // protein (grams)
+  carbs_g: 185,        // carbs (grams)
+  fat_g: 75,           // fat (grams)
+  workout_min: 60,     // workout duration (minutes)
+};
+```
+
+The dashboard Calories card, macro bars, and Protein chart all use these values.
+
 ## Stack
 
 - **Next.js 16** with App Router
@@ -88,10 +136,10 @@ cp .env.example .env
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `OURA_CLIENT_ID` | For Oura sync | Oura developer app client ID |
-| `OURA_CLIENT_SECRET` | For Oura sync | Oura developer app client secret |
-| `CHRONO_EMAIL` | For Cronometer sync | Cronometer login email |
-| `CHRONO_PASS` | For Cronometer sync | Cronometer login password |
+| `GARMIN_EMAIL` | For Garmin sync | Garmin Connect login email |
+| `GARMIN_PASSWORD` | For Garmin sync | Garmin Connect login password |
+| `CRONOMETER_EMAIL` | For Cronometer sync | Cronometer login email |
+| `CRONOMETER_PASSWORD` | For Cronometer sync | Cronometer login password |
 | `GEMINI_API_KEY` | For Ladder OCR | Google AI Studio API key |
 | `NEXT_PUBLIC_GEMINI_CONFIGURED` | For Ladder OCR | Set to `1` when Gemini key is added |
 

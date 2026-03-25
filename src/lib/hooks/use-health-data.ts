@@ -1,5 +1,5 @@
 import useSWR, { preload } from "swr";
-import type { DailyLog, WeightEntry, BloodResult, SyncStatus } from "@/lib/types";
+import type { DailyLog, WeightEntry, BloodResult } from "@/lib/types";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -36,5 +36,5 @@ export function useBloodwork() {
 }
 
 export function useSyncStatus() {
-  return useSWR<SyncStatus>("/api/oura-auth", fetcher);
+  return useSWR<{ garmin_configured: boolean; last_garmin_sync: string | null; last_chrono_sync: string | null; last_ladder_sync: string | null }>("/api/garmin-status", fetcher);
 }

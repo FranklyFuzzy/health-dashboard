@@ -28,20 +28,12 @@ db.exec(`
     workout_calories INTEGER,
     workout_duration_min INTEGER,
     workout_name TEXT,
-    oura_workout_calories INTEGER,
+    garmin_workout_calories INTEGER,
     weight_lbs REAL,
     water_oz REAL,
-    oura_synced_at TEXT,
+    garmin_synced_at TEXT,
     chrono_synced_at TEXT,
     ladder_synced_at TEXT,
-    updated_at TEXT DEFAULT (datetime('now'))
-  );
-
-  CREATE TABLE IF NOT EXISTS oura_auth (
-    id INTEGER PRIMARY KEY CHECK (id = 1),
-    access_token TEXT,
-    refresh_token TEXT,
-    expires_at INTEGER,
     updated_at TEXT DEFAULT (datetime('now'))
   );
 

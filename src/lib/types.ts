@@ -14,10 +14,10 @@ export interface DailyLog {
   workout_calories: number | null;
   workout_duration_min: number | null;
   workout_name: string | null;
-  oura_workout_calories: number | null;
+  garmin_workout_calories: number | null;
   weight_lbs: number | null;
   water_oz: number | null;
-  oura_synced_at: string | null;
+  garmin_synced_at: string | null;
   chrono_synced_at: string | null;
   ladder_synced_at: string | null;
   updated_at: string;
@@ -28,12 +28,6 @@ export interface WeightEntry {
   day: string;
   weight_lbs: number;
   logged_at: string;
-}
-
-export interface OuraAuth {
-  access_token: string | null;
-  refresh_token: string | null;
-  expires_at: number | null;
 }
 
 export interface BloodResult {
@@ -48,8 +42,8 @@ export interface BloodResult {
 }
 
 export interface SyncStatus {
-  oura_connected: boolean;
-  last_oura_sync: string | null;
+  garmin_configured: boolean;
+  last_garmin_sync: string | null;
   last_chrono_sync: string | null;
   last_ladder_sync: string | null;
 }

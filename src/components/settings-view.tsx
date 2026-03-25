@@ -3,45 +3,81 @@
 import { useState, useCallback } from "react";
 import { useSyncStatus } from "@/lib/hooks/use-health-data";
 
+const DAYS_OPTIONS = [1, 3, 7] as const;
+
 export function SettingsView() {
   const { data: status, mutate } = useSyncStatus();
-  const [syncingOura, setSyncingOura] = useState(false);
+  const [syncingGarmin, setSyncingGarmin] = useState(false);
   const [syncingChrono, setSyncingChrono] = useState(false);
   const [syncingLadder, setSyncingLadder] = useState(false);
+  const [syncingAll, setSyncingAll] = useState(false);
   const [result, setResult] = useState<string | null>(null);
+  const [days, setDays] = useState<number>(1);
 
-  const connectOura = useCallback(() => {
-    window.location.href = "/api/oura-auth";
-  }, []);
+  const anySyncing = syncingGarmin || syncingChrono || syncingLadder || syncingAll;
 
-  const syncOura = useCallback(async () => {
-    setSyncingOura(true);
+  const syncAll = useCallback(async () => {
+    setSyncingAll(true);
     setResult(null);
     try {
-      const res = await fetch("/api/sync-oura", { method: "POST" });
+      const res = await fetch("/api/sync-all", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ days }),
+      });
       const data = await res.json();
-      setResult(data.error ? `Oura: ${data.error}` : "Oura synced");
+      const parts: string[] = [];
+      if (data.garmin?.error) parts.push(`Garmin: ${data.garmin.error}`);
+      else if (data.garmin) parts.push("Garmin synced");
+      if (data.chrono?.error) parts.push(`Cronometer: ${data.chrono.error}`);
+      else if (data.chrono) parts.push("Cronometer synced");
+      if (data.ladder?.error) parts.push(`Ladder: ${data.ladder.error}`);
+      else if (data.ladder) parts.push("Ladder synced");
+      setResult(parts.join(" · ") || "Sync complete");
       mutate();
     } catch {
-      setResult("Oura sync failed");
+      setResult("Sync All failed");
     } finally {
-      setSyncingOura(false);
+      setSyncingAll(false);
     }
-  }, [mutate]);
+  }, [days, mutate]);
+
+  const syncGarmin = useCallback(async () => {
+    setSyncingGarmin(true);
+    setResult(null);
+    try {
+      const res = await fetch("/api/sync-garmin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ days }),
+      });
+      const data = await res.json();
+      setResult(data.error ? `Garmin: ${data.error}` : "Garmin synced");
+      mutate();
+    } catch {
+      setResult("Garmin sync failed");
+    } finally {
+      setSyncingGarmin(false);
+    }
+  }, [days, mutate]);
 
   const syncChrono = useCallback(async () => {
     setSyncingChrono(true);
     setResult(null);
     try {
-      const res = await fetch("/api/sync-chrono", { method: "POST" });
+      const res = await fetch("/api/sync-chrono", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ days }),
+      });
       const data = await res.json();
-      setResult(data.error ? `Chrono: ${data.error}` : `Chronometer synced${data.data?.water_oz != null ? ` (${data.data.water_oz}oz water)` : ""}`);
+      setResult(data.error ? `Cronometer: ${data.error}` : "Cronometer synced");
     } catch {
-      setResult("Chronometer sync failed");
+      setResult("Cronometer sync failed");
     } finally {
       setSyncingChrono(false);
     }
-  }, []);
+  }, [days]);
 
   const syncLadder = useCallback(async () => {
     setSyncingLadder(true);
@@ -100,42 +136,68 @@ export function SettingsView() {
         </div>
       )}
 
-      {/* Oura */}
-      <Section title="Oura Ring">
+      {/* Sync All */}
+      <Section title="Sync All">
+        <div style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 8 }}>
+          Sync all data sources at once
+        </div>
+        <div className="flex items-center gap-3">
+          <SettingsButton onClick={syncAll} disabled={anySyncing}>
+            {syncingAll ? "Syncing..." : "Sync All"}
+          </SettingsButton>
+          <select
+            value={days}
+            onChange={(e) => setDays(Number(e.target.value))}
+            style={{
+              background: "var(--bg-tertiary)",
+              border: "1px solid var(--border-color)",
+              color: "var(--text-secondary)",
+              fontSize: 12,
+              fontFamily: "inherit",
+              padding: "0.4rem 0.5rem",
+              borderRadius: 4,
+            }}
+          >
+            {DAYS_OPTIONS.map((d) => (
+              <option key={d} value={d}>
+                {d} day{d > 1 ? "s" : ""}
+              </option>
+            ))}
+          </select>
+        </div>
+      </Section>
+
+      {/* Garmin */}
+      <Section title="Garmin Connect">
         <div className="flex items-center gap-3">
           <div
             className="w-2 h-2 rounded-full"
-            style={{ background: status?.oura_connected ? "var(--positive)" : "var(--negative)" }}
+            style={{ background: status?.garmin_configured ? "var(--positive)" : "var(--negative)" }}
           />
           <span style={{ fontSize: 13, color: "var(--text-secondary)" }}>
-            {status?.oura_connected ? "Connected" : "Not connected"}
+            {status?.garmin_configured ? "Configured" : "Not configured — add GARMIN_EMAIL to .env"}
           </span>
         </div>
         <div className="flex gap-2 mt-3">
-          <SettingsButton onClick={connectOura}>
-            {status?.oura_connected ? "Reconnect" : "Connect Oura"}
+          <SettingsButton onClick={syncGarmin} disabled={anySyncing}>
+            {syncingGarmin ? "Syncing..." : "Sync Now"}
           </SettingsButton>
-          {status?.oura_connected && (
-            <SettingsButton onClick={syncOura} disabled={syncingOura}>
-              {syncingOura ? "Syncing..." : "Sync Now"}
-            </SettingsButton>
-          )}
         </div>
-        {status?.last_oura_sync && (
+        {status?.last_garmin_sync && (
           <div className="mt-2 text-[11px]" style={{ color: "var(--text-muted)" }}>
-            Last sync: {status.last_oura_sync}
+            Last sync: {status.last_garmin_sync}
           </div>
         )}
       </Section>
 
-      {/* Chronometer */}
-      <Section title="Chronometer">
+      {/* Cronometer */}
+      <Section title="Cronometer">
         <div style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 8 }}>
-          Syncs food calories, macros, and water intake
+          Syncs food calories and macros
         </div>
         <div className="flex gap-2">
-          <SettingsButton onClick={syncChrono} disabled={syncingChrono}>
-            {syncingChrono ? "Scraping..." : "Sync Now"}
+          <SettingsButton onClick={syncChrono} disabled={anySyncing}>
+            {syncingChrono ? "Syncing..." : "Sync Now"}
           </SettingsButton>
         </div>
         {status?.last_chrono_sync && (
@@ -155,10 +217,10 @@ export function SettingsView() {
           }
         </div>
         <div className="flex gap-2">
-          <SettingsButton onClick={syncLadder} disabled={syncingLadder}>
+          <SettingsButton onClick={syncLadder} disabled={anySyncing}>
             {syncingLadder ? "Scanning..." : "Sync New"}
           </SettingsButton>
-          <SettingsButton onClick={reprocessLadder} disabled={syncingLadder}>
+          <SettingsButton onClick={reprocessLadder} disabled={anySyncing}>
             Reprocess All
           </SettingsButton>
         </div>

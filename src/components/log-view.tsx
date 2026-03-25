@@ -25,13 +25,13 @@ function rc(s: number | null) {
 function deficit(log: DailyLog): number | null {
   if (log.food_calories == null || log.total_calories == null || log.active_calories == null) return null;
   const bmr = log.total_calories - log.active_calories;
-  const workouts = (log.oura_workout_calories || 0) + (log.workout_calories || 0);
+  const workouts = (log.garmin_workout_calories || 0) + (log.workout_calories || 0);
   return bmr + workouts - log.food_calories;
 }
 
 function exerciseCal(log: DailyLog): number | null {
   if (log.total_calories == null || log.active_calories == null) return null;
-  return (log.oura_workout_calories || 0) + (log.workout_calories || 0);
+  return (log.garmin_workout_calories || 0) + (log.workout_calories || 0);
 }
 
 function formatDate(day: string): string {
@@ -151,7 +151,7 @@ const COLUMNS: ColDef[] = [
     id: "deficit", label: "Deficit", width: 70,
     render: (log) => {
       const def = deficit(log);
-      return <span style={{ fontWeight: 700, color: def != null ? (def >= 0 ? C.deficit : C.surplus) : C.muted }}>
+      return <span style={{ fontWeight: 700, color: def != null ? (def >= 0 ? C.surplus : C.deficit) : C.muted }}>
         {def != null ? `${def >= 0 ? "-" : "+"}${Math.abs(def)}` : "---"}
       </span>;
     },
@@ -181,7 +181,7 @@ const COLUMNS: ColDef[] = [
     render: (log) => <span style={{ color: C.sleep }}>{log.sleep_hours != null ? `${log.sleep_hours.toFixed(1)}h` : "---"}</span>,
   },
   {
-    id: "sleepScore", label: "Score", width: 45, color: C.sleep,
+    id: "sleepScore", label: "Sleep Score", width: 70, color: C.sleep,
     render: (log) => <span style={{ color: C.sleep, opacity: 0.7 }}>{log.sleep_score ?? "---"}</span>,
   },
   {
@@ -206,13 +206,13 @@ const VIEWS: ViewDef[] = [
   {
     id: "all",
     label: "All",
-    columns: ["date", "weight", "foodCal", "protein", "carbs", "fat", "exerciseCal", "deficit", "steps", "sleep", "sleepScore", "recovery", "water"],
+    columns: ["date", "weight", "foodCal", "protein", "carbs", "fat", "exerciseCal", "deficit", "steps", "sleep", "sleepScore", "recovery"],
     countFn: () => true,
   },
   {
     id: "food",
     label: "Food",
-    columns: ["date", "foodCal", "protein", "carbs", "fat", "water", "deficit"],
+    columns: ["date", "foodCal", "protein", "carbs", "fat", "deficit"],
     countFn: (l) => l.food_calories != null,
   },
   {
