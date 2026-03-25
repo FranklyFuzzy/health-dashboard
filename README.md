@@ -7,7 +7,7 @@ Ships with pre-built connectors for **Garmin Connect**, **Cronometer**, and **La
 ## Quick Start
 
 ```bash
-git clone https://github.com/alexcohennyc/health-dashboard.git
+git clone https://github.com/FranklyFuzzy/health-dashboard.git
 cd health-dashboard
 npm install
 npm run seed    # populate with sample data
