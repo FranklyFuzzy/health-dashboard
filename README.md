@@ -4,6 +4,9 @@ A local-first personal health dashboard built with Next.js and SQLite. Track wei
 
 Ships with pre-built connectors for **Garmin Connect**, **Cronometer**, and **Ladder** workout screenshots, but the architecture is simple enough to add any data source you want.
 
+<img width="1450" height="1147" alt="Screenshot" src="https://github.com/user-attachments/assets/81e3007d-1646-442e-9fab-e7805d06899a" />
+
+
 ## Quick Start
 
 ```bash
